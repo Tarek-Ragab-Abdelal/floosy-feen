@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { useDate } from '@/contexts/DateContext';
-import { format, addMonths, addYears } from 'date-fns';
+import { format } from 'date-fns';
 import { Calendar } from 'lucide-react';
 
 export function DateSelector() {
@@ -30,6 +30,7 @@ export function DateSelector() {
       <input
         type="date"
         value={format(selectedDate, 'yyyy-MM-dd')}
+        min={format(new Date(), 'yyyy-MM-dd')}
         onChange={(e) => setSelectedDate(new Date(e.target.value))}
         className="ml-4 bg-transparent border border-gray-200 dark:border-gray-700 rounded-md px-2 py-1 text-sm"
       />

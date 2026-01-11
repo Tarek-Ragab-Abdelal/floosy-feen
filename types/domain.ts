@@ -1,15 +1,13 @@
-// Domain Types for Personal Finance Vault
-
-// export type StreamType = 'income' | 'expense' | 'account'; // Deprecated
+// Domain Types for Personal Floosy Feen
 export type TransactionType = 'income' | 'expense';
 export type RecurrenceFrequency = 'daily' | 'weekly' | 'monthly' | 'yearly' | 'custom';
 
 export interface Stream {
   id: string;
   name: string;
-  // type: StreamType; // Removed in favor of unified Account concept
-  icon: string; // 'bank', 'cash', 'card', 'paypal', etc.
+  icon: string; 
   baseCurrency: string;
+  isCreditCard?: boolean; // Indicates if this is a credit card stream
   creditLimit?: number; // For Credit Cards
   currentUsage?: number; // For Credit Cards
   createdAt: Date;
@@ -43,7 +41,7 @@ export interface Recurrence {
   tags: string[];
 }
 
-export type AutomationType = 'salary' | 'transfer' | 'saving_circle' | 'cc_payment'; // New types
+export type AutomationType = 'salary' | 'transfer' | 'saving_circle' | 'cc_payment' | 'installment'; // Added installment
 
 export interface Automation {
   id: string;
@@ -52,13 +50,25 @@ export interface Automation {
   amount: number; // or calculate locally if 'ALL'
   // Currency is optional; when omitted the automation will use associated stream's baseCurrency
   currency?: string;
-  sourceStreamId?: string; // For transfer/cc
+  sourceStreamId?: string; // For transfer/cc/saving_circle
   targetStreamId?: string; // For salary/transfer
   schedule: {
     frequency: 'monthly' | 'weekly' | 'manual';
     day?: number; // e.g. 6th of month
+    startDate?: Date; // When to start the automation
+    endDate?: Date | null; // When to end (null = indefinite)
+    occurrences?: number; // For installments - total number of times to run
+  };
+  // For saving circles with earning months
+  savingCircle?: {
+    totalOccurrences: number; // Total payments (e.g., 12 months)
+    earningSchedule?: Array<{
+      occurrence: number; // Which occurrence (1-based, e.g., 2 for 2nd month)
+      portion: number; // Portion to earn (0-1, e.g., 0.33 for 4/12)
+    }>;
   };
   isActive: boolean;
+  requiresConfirmation: boolean; // If true, user must manually confirm each occurrence
   createdAt: Date;
   lastRunAt?: Date;
 }
@@ -92,7 +102,7 @@ export interface ExchangeRateCache {
 export const COMMON_CURRENCIES = [
   { code: 'USD', name: 'US Dollar', symbol: '$' },
   { code: 'EGP', name: 'Egyptian Pound', symbol: '£' },
-  { code: 'SAR', name: 'Saudi Riyal', symbol: '⃁' },
+  { code: 'SAR', name: 'Saudi Riyal', symbol: '﷼' },
   { code: 'EUR', name: 'Euro', symbol: '€' },
 ] as const;
 

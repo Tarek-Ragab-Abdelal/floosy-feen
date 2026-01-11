@@ -25,7 +25,7 @@ export class TransactionRepository implements BaseRepository<Transaction> {
     // If the stream is a credit card (has creditLimit), update its currentUsage
     try {
       const streamRaw = await db.get(STORES.STREAMS, transaction.streamId);
-      if (streamRaw && typeof streamRaw.creditLimit !== 'undefined') {
+      if (streamRaw?.creditLimit !== undefined) {
         const prevUsage = typeof streamRaw.currentUsage === 'number' ? streamRaw.currentUsage : 0;
         const delta = transaction.type === 'expense' ? transaction.amount : -transaction.amount;
         let newUsage = prevUsage + delta;
@@ -86,7 +86,6 @@ export class TransactionRepository implements BaseRepository<Transaction> {
   }
 
   async findByDateRange(fromDate: Date, toDate: Date): Promise<Transaction[]> {
-    const db = await getDB();
     const allTransactions = await this.findAll();
 
     return allTransactions.filter(tx => 

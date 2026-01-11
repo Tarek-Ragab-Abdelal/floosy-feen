@@ -66,7 +66,7 @@ async function fetchFromPrimaryAPI(
 
   const data = await response.json();
   
-  if (!data.rates || !data.rates[toCurrency]) {
+  if (!data.rates?.[toCurrency]) {
     throw new Error(`Currency ${toCurrency} not found in response`);
   }
 
@@ -88,7 +88,7 @@ async function fetchFromFallbackAPI(
 
   const data = await response.json();
   
-  if (!data.rates || !data.rates[toCurrency]) {
+  if (!data.rates?.[toCurrency]) {
     throw new Error(`Currency ${toCurrency} not found in fallback response`);
   }
 
@@ -200,18 +200,63 @@ async function cacheRate(
 export async function clearOldCachedRates(): Promise<void> {
   try {
     const db = await getDB();
-    const allRates = await db.getAll(STORES.EXCHANGE_RATES);
+    const tx = db.transaction(STORES.EXCHANGE_RATES, 'readwrite');
+    const store = tx.objectStore(STORES.EXCHANGE_RATES);
+    const allRates = await store.getAll();
+
     const now = new Date();
+    const deletePromises = [];
 
     for (const rate of allRates) {
       const fetchedAt = new Date(rate.fetchedAt);
       const hoursSinceFetch = (now.getTime() - fetchedAt.getTime()) / (1000 * 60 * 60);
 
       if (hoursSinceFetch > CACHE_DURATION_HOURS) {
-        await db.delete(STORES.EXCHANGE_RATES, rate.id);
+        deletePromises.push(store.delete(rate.id));
       }
     }
+
+    await Promise.all(deletePromises);
+    await tx.done;
   } catch (error) {
     console.error('Error clearing old cached rates:', error);
   }
+}
+
+/**
+ * Fetch and cache exchange rates for all needed currency pairs
+ * @param baseCurrency The primary/target currency to convert to
+ * @param currencies List of all currencies that need conversion rates
+ */
+export async function fetchAndCacheRatesForCurrencies(
+  baseCurrency: string,
+  currencies: string[]
+): Promise<Map<string, number>> {
+  const rateMap = new Map<string, number>();
+  
+  // Get unique currencies that need conversion (excluding base currency)
+  const uniqueCurrencies = Array.from(new Set(currencies.filter(c => c !== baseCurrency)));
+  
+  // Fetch rates for each currency pair
+  for (const currency of uniqueCurrencies) {
+    try {
+      // Check if we already have a cached rate
+      const cached = await getCachedRate(currency, baseCurrency);
+      if (cached) {
+        rateMap.set(`${currency}_${baseCurrency}`, cached.rate);
+        continue;
+      }
+      
+      // Fetch new rate
+      const rate = await fetchExchangeRate(currency, baseCurrency);
+      rateMap.set(`${currency}_${baseCurrency}`, rate);
+      
+      // Rate is already cached by fetchExchangeRate
+    } catch (error) {
+      console.error(`Failed to fetch rate for ${currency} -> ${baseCurrency}:`, error);
+      // Continue with other rates even if one fails
+    }
+  }
+  
+  return rateMap;
 }

@@ -1,27 +1,35 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { useRepositories } from '@/contexts/RepositoryContext';
 import { useDate } from '@/contexts/DateContext';
 import { DateSelector } from '@/components/ui/DateSelector';
-import { FAB } from '@/components/ui/FAB';
 import { Modal } from '@/components/ui/Modal';
-import { TransactionForm } from '@/components/forms/TransactionForm';
-import { calculateMoneyInHand, calculateProjectedMoney } from '@/lib/calculations/balance';
-import { Transaction, Stream, UserSettings } from '@/types/domain';
-import { TrendingUp, TrendingDown, Wallet, ArrowUpRight } from 'lucide-react';
-import { format } from 'date-fns';
+import { calculateMoneyInHand } from '@/lib/calculations/balance';
+import { generateAllProjectionsWithAutomations, combineRealAndProjected } from '@/lib/calculations/projections';
+import { fetchAndCacheRatesForCurrencies } from '@/lib/currency/converter';
+import { Transaction, Stream, UserSettings, Automation, Recurrence } from '@/types/domain';
+import { format, isSameDay } from 'date-fns';
+import { StreamForm } from '@/components/forms/StreamForm';
+import { DateBanner } from '@/components/home/DateBanner';
+import { CurrencyBanner } from '@/components/home/CurrencyBanner';
+import { BalanceCard } from '@/components/home/BalanceCard';
+import { CreditSummaryCard } from '@/components/home/CreditSummaryCard';
+import { StreamsSection } from '@/components/home/StreamsSection';
 
 export default function HomePage() {
-  const { transactionRepo, streamRepo, settingsRepo, isInitialized } = useRepositories();
+  const { transactionRepo, streamRepo, settingsRepo, automationRepo, recurrenceRepo, isInitialized } = useRepositories();
   const { selectedDate } = useDate();
   
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [streams, setStreams] = useState<Stream[]>([]);
   const [settings, setSettings] = useState<UserSettings | null>(null);
-  const [isTransactionModalOpen, setIsTransactionModalOpen] = useState(false);
+  const [automations, setAutomations] = useState<Automation[]>([]);
+  const [recurrences, setRecurrences] = useState<Recurrence[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [showStreamModal, setShowStreamModal] = useState(false);
+  const [editingStream, setEditingStream] = useState<Stream | null>(null);
 
   useEffect(() => {
     if (!isInitialized) return;
@@ -29,7 +37,6 @@ export default function HomePage() {
     loadData();
   }, [isInitialized, selectedDate]);
 
-  // const [rates, setRates] = useState<Map<string, number>>(new Map()); // Not efficient to strictly state map type in hook if strict mode
   const [exchangeRates, setExchangeRates] = useState<Map<string, number>>(new Map());
 
   useEffect(() => {
@@ -40,33 +47,40 @@ export default function HomePage() {
 
   const loadData = async () => {
     try {
-      const [txs, strms, stgs, ratesList] = await Promise.all([
+      const [txs, strms, stgs, autos, recs] = await Promise.all([
         transactionRepo.findAll(),
         streamRepo.findActive(),
         settingsRepo.get(),
-        // We really want only latest rates, but for now getting all and filtering in memory or just using all is fine if ID is unique per day
-        // Ideally we need a map Key: "FROM_TO" -> Rate. 
-        // We'll need to fetch latest rates for each currency pair related to user's primary currency.
-        // For simplicity, let's fetch all and map them locally.
-        import('@/repositories/exchange-rate.repository').then(m => m.exchangeRateRepo.findAll()),
+        automationRepo.findAll(),
+        recurrenceRepo.findAll(),
       ]);
+
+      console.log('Loaded transactions:', txs.length, txs);
+      console.log('Loaded streams:', strms.length, strms);
 
       setTransactions(txs);
       setStreams(strms);
       setSettings(stgs);
+      setAutomations(autos);
+      setRecurrences(recs);
 
-      // Process rates into a Map
-      // We want the LATEST rate for each pair.
-      // id format: "USD_EUR_2025-12-22"
-      // We can just sort by date and stick in map.
-      const rateMap = new Map<string, number>();
-      // Sort by date ascending so latest overwrites earlier
-      const sortedRates = ratesList.sort((a, b) => a.date.localeCompare(b.date));
-      
-      sortedRates.forEach(r => {
-        rateMap.set(`${r.fromCurrency}_${r.toCurrency}`, r.rate);
-      });
-      setExchangeRates(rateMap);
+      // Fetch exchange rates for all currencies in use
+      if (stgs?.primaryCurrency) {
+        // Get all unique currencies from streams and transactions
+        const streamCurrencies = strms.map(s => s.baseCurrency);
+        const txCurrencies = txs.map(t => t.currency);
+        const allCurrencies = Array.from(new Set([...streamCurrencies, ...txCurrencies]));
+        
+        // Fetch and cache rates for all currency pairs
+        try {
+          const rates = await fetchAndCacheRatesForCurrencies(stgs.primaryCurrency, allCurrencies);
+          setExchangeRates(rates);
+        } catch (error) {
+          console.error('Error fetching exchange rates:', error);
+          // Continue without rates - will show warning or use 1:1
+          setExchangeRates(new Map());
+        }
+      }
 
     } catch (error) {
       console.error('Error loading data:', error);
@@ -75,22 +89,138 @@ export default function HomePage() {
     }
   };
 
-  const handleTransactionCreated = () => {
-    setIsTransactionModalOpen(false);
-    loadData();
-  };
-
-  const handleFABClick = () => {
-    if (streams.length === 0) {
-      alert('Please create a stream first from the Streams page');
-      return;
+  const handleDeleteStream = async (streamId: string, transferToStreamId?: string) => {
+    try {
+      const streamTransactions = transactions.filter(tx => tx.streamId === streamId);
+      
+      if (transferToStreamId) {
+        const targetStream = streams.find(s => s.id === transferToStreamId);
+        const sourceStream = streams.find(s => s.id === streamId);
+        
+        // Transfer transactions to another stream with currency conversion if needed
+        for (const tx of streamTransactions) {
+          const updates: Partial<Transaction> = { streamId: transferToStreamId };
+          
+          // Convert currency if target stream has different currency
+          if (targetStream && sourceStream && tx.currency !== targetStream.baseCurrency) {
+            updates.currency = targetStream.baseCurrency;
+            
+            // Convert amount if exchange rates are available
+            if (exchangeRates.size > 0) {
+              const directKey = `${tx.currency}_${targetStream.baseCurrency}`;
+              const inverseKey = `${targetStream.baseCurrency}_${tx.currency}`;
+              
+              if (exchangeRates.has(directKey)) {
+                updates.amount = tx.amount * exchangeRates.get(directKey)!;
+              } else if (exchangeRates.has(inverseKey)) {
+                updates.amount = tx.amount / exchangeRates.get(inverseKey)!;
+              }
+            }
+          }
+          
+          await transactionRepo.update(tx.id, updates);
+        }
+      } else {
+        // Delete all transactions
+        for (const tx of streamTransactions) {
+          await transactionRepo.delete(tx.id);
+        }
+      }
+      
+      // Delete the stream
+      await streamRepo.delete(streamId);
+      
+      // Reload data
+      await loadData();
+    } catch (error) {
+      console.error('Error deleting stream:', error);
+      alert('Failed to delete stream. Please try again.');
     }
-    setIsTransactionModalOpen(true);
   };
 
-  const moneyInHand = calculateMoneyInHand(transactions, selectedDate, settings?.primaryCurrency, exchangeRates);
-  const projectedMoney = calculateProjectedMoney(transactions, selectedDate, settings?.primaryCurrency, exchangeRates);
-  const totalBalance = moneyInHand + projectedMoney;
+  const handleEditStream = (stream: Stream) => {
+    setEditingStream(stream);
+    setShowStreamModal(true);
+  };
+
+  const handleStreamModalClose = () => {
+    setShowStreamModal(false);
+    setEditingStream(null);
+  };
+
+  const handleStreamSuccess = async () => {
+    setShowStreamModal(false);
+    setEditingStream(null);
+    await loadData();
+  };
+
+  // Generate projected transactions from automations and recurrences up to selected date
+  const today = new Date();
+  const futureDate = new Date(selectedDate);
+  futureDate.setFullYear(futureDate.getFullYear() + 2); // Project 2 years into future for range
+  
+  const projectedTransactions = generateAllProjectionsWithAutomations(
+    recurrences,
+    automations,
+    streams,
+    today,
+    futureDate
+  );
+  
+  // Combine actual and projected transactions
+  const allTransactions = combineRealAndProjected(transactions, projectedTransactions);
+  
+  // Get credit card stream IDs for filtering
+  const creditCardStreams = streams.filter(s => s.isCreditCard);
+  const creditCardStreamIds = new Set(creditCardStreams.map(s => s.id));
+  
+  // Calculate balance excluding credit card transactions (credit cards are liabilities, tracked separately)
+  const nonCreditCardTransactions = allTransactions.filter(tx => !creditCardStreamIds.has(tx.streamId));
+  let balance = calculateMoneyInHand(
+    nonCreditCardTransactions as Transaction[],
+    selectedDate,
+    settings?.primaryCurrency,
+    exchangeRates
+  );
+  
+  // Subtract credit card usage (liability) from balance
+  creditCardStreams.forEach(card => {
+    const cardTransactions = transactions.filter(
+      tx => tx.streamId === card.id && tx.applicabilityDate <= selectedDate
+    );
+    
+    // Calculate transaction-based usage change (expenses increase usage, payments decrease it)
+    const transactionUsage = cardTransactions.reduce((sum, tx) => {
+      let amount = tx.amount;
+      
+      // Convert to primary currency if needed
+      if (settings?.primaryCurrency && tx.currency !== settings.primaryCurrency && exchangeRates.size > 0) {
+        const directKey = `${tx.currency}_${settings.primaryCurrency}`;
+        const inverseKey = `${settings.primaryCurrency}_${tx.currency}`;
+        
+        if (exchangeRates.has(directKey)) {
+          amount *= exchangeRates.get(directKey)!;
+        } else if (exchangeRates.has(inverseKey)) {
+          amount /= exchangeRates.get(inverseKey)!;
+        }
+      }
+      
+      return tx.type === 'expense' ? sum + amount : sum - amount;
+    }, 0);
+    
+    // Total usage = initial usage + transaction changes
+    const totalUsage = (card.currentUsage || 0) + transactionUsage;
+    
+    // Subtract total usage from overall balance (credit card debt is a liability)
+    balance -= totalUsage;
+  });
+  
+  // Check if multiple currencies are in use
+  const currenciesInUse = Array.from(new Set([
+    ...streams.map(s => s.baseCurrency),
+    ...transactions.map(t => t.currency)
+  ]));
+  const hasMultipleCurrencies = currenciesInUse.length > 1;
 
   if (isLoading) {
     return (
@@ -109,7 +239,7 @@ export default function HomePage() {
     <AppLayout>
       <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
         {/* Header */}
-        <div className="space-y-4">
+        <div className="lg:pt-20 space-y-4">
           <div>
             <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white">
               Welcome back, {settings?.name || 'User'}!
@@ -121,130 +251,53 @@ export default function HomePage() {
 
           <DateSelector/>
         </div>
+        
+        {/* Date Preview Banner - Show when not viewing today */}
+        {!isSameDay(selectedDate, new Date()) && (
+          <DateBanner selectedDate={selectedDate} />
+        )}
+        
+        {/* Currency Conversion Info Banner */}
+        {hasMultipleCurrencies && (
+          <CurrencyBanner currenciesInUse={currenciesInUse} />
+        )}
 
-        {/* Hero Card - Money in Hand */}
-        <div className="relative overflow-hidden bg-emerald-600 rounded-3xl shadow-xl p-8 text-white">
-          <div className="relative z-10">
-            <div className="flex items-center gap-2 mb-2">
-              <Wallet className="w-5 h-5 opacity-90" />
-              <span className="text-sm font-medium opacity-90">Money in Hand</span>
-            </div>
-            <div className="text-3xl sm:text-4xl md:text-5xl font-bold mb-4 break-words">
-              {settings?.primaryCurrency} {moneyInHand.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-            </div>
-            <div className="flex items-center gap-4 text-sm">
-              <div className="flex items-center gap-1">
-                <TrendingUp className="w-4 h-4" />
-                <span>Projected: {settings?.primaryCurrency} {projectedMoney.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-              </div>
-            </div>
-          </div>
+        {/* Hero Card - Balance */}
+        <BalanceCard 
+          balance={balance}
+          currency={settings?.primaryCurrency || 'USD'}
+          selectedDate={selectedDate}
+        />
 
-          {/* Decorative elements */}
-          <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full -translate-y-32 translate-x-32" />
-          <div className="absolute bottom-0 left-0 w-48 h-48 bg-white/10 rounded-full translate-y-24 -translate-x-24" />
-        </div>
+        {/* Credit Summary Card */}
+        <CreditSummaryCard
+          streams={streams}
+          transactions={transactions}
+          selectedDate={selectedDate}
+          currency={settings?.primaryCurrency || 'USD'}
+        />
 
-        {/* Quick Stats */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          <div className="bg-white dark:bg-slate-800 rounded-2xl p-6 shadow-sm border border-gray-200 dark:border-gray-700">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-sm text-gray-600 dark:text-gray-400">Total Balance</span>
-              <ArrowUpRight className="w-4 h-4 text-green-500" />
-            </div>
-            <div className="text-2xl font-bold text-gray-900 dark:text-white">
-              {settings?.primaryCurrency} {totalBalance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-            </div>
-          </div>
-
-          <div className="bg-white dark:bg-slate-800 rounded-2xl p-6 shadow-sm border border-gray-200 dark:border-gray-700">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-sm text-gray-600 dark:text-gray-400">Active Streams</span>
-              <Wallet className="w-4 h-4 text-emerald-500" />
-            </div>
-            <div className="text-2xl font-bold text-gray-900 dark:text-white">
-              {streams.length}
-            </div>
-          </div>
-
-          <div className="bg-white dark:bg-slate-800 rounded-2xl p-6 shadow-sm border border-gray-200 dark:border-gray-700">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-sm text-gray-600 dark:text-gray-400">Transactions</span>
-              <TrendingUp className="w-4 h-4 text-purple-500" />
-            </div>
-            <div className="text-2xl font-bold text-gray-900 dark:text-white">
-              {transactions.filter(tx => tx.applicabilityDate <= selectedDate).length}
-            </div>
-          </div>
-        </div>
-
-        {/* Recent Transactions */}
-        <div className="bg-white dark:bg-slate-800 rounded-2xl p-6 shadow-sm border border-gray-200 dark:border-gray-700">
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
-            Recent Transactions
-          </h2>
-          
-          {transactions.length === 0 ? (
-            <div className="text-center py-12">
-              <TrendingDown className="w-12 h-12 text-gray-400 mx-auto mb-3" />
-              <p className="text-gray-600 dark:text-gray-400">No transactions yet</p>
-              <p className="text-sm text-gray-500 dark:text-gray-500 mt-1">
-                Click the + button to add your first transaction
-              </p>
-            </div>
-          ) : (
-            <div className="space-y-3">
-              {transactions
-                .filter(tx => tx.applicabilityDate <= selectedDate)
-                .sort((a, b) => b.applicabilityDate.getTime() - a.applicabilityDate.getTime())
-                .slice(0, 5)
-                .map((tx) => {
-                  const stream = streams.find(s => s.id === tx.streamId);
-                  return (
-                    <div key={tx.id} className="flex items-center justify-between p-4 bg-gray-50 dark:bg-slate-700 rounded-xl">
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2">
-                          <span className="font-medium text-gray-900 dark:text-white">
-                            {stream?.name || 'Unknown'}
-                          </span>
-                          <span className={`text-xs px-2 py-1 rounded-full ${
-                            tx.type === 'income'
-                              ? 'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300'
-                              : 'bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300'
-                          }`}>
-                            {tx.type}
-                          </span>
-                        </div>
-                        <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-                          {format(tx.applicabilityDate, 'MMM dd, yyyy')}
-                        </p>
-                      </div>
-                      <div className={`text-lg font-semibold ${
-                        tx.type === 'income' ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'
-                      }`}>
-                        {tx.type === 'income' ? '+' : '-'}{tx.currency} {tx.amount.toLocaleString()}
-                      </div>
-                    </div>
-                  );
-                })}
-            </div>
-          )}
-        </div>
+        {/* Streams Section */}
+        <StreamsSection
+          streams={streams}
+          transactions={transactions}
+          selectedDate={selectedDate}
+          onCreateStream={() => setShowStreamModal(true)}
+          onDeleteStream={handleDeleteStream}
+          onEditStream={handleEditStream}
+        />
       </div>
 
-      {/* FAB */}
-      <FAB onClick={handleFABClick} label="Add Transaction" />
-
-      {/* Transaction Modal */}
+      {/* Stream Form Modal */}
       <Modal
-        isOpen={isTransactionModalOpen}
-        onClose={() => setIsTransactionModalOpen(false)}
-        title="New Transaction"
+        isOpen={showStreamModal}
+        onClose={handleStreamModalClose}
+        title={editingStream ? 'Edit Stream' : 'Create Stream'}
       >
-        <TransactionForm
-          streams={streams}
-          onSuccess={handleTransactionCreated}
-          onCancel={() => setIsTransactionModalOpen(false)}
+        <StreamForm
+          initial={editingStream}
+          onSuccess={handleStreamSuccess}
+          onCancel={handleStreamModalClose}
         />
       </Modal>
     </AppLayout>

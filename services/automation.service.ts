@@ -4,10 +4,14 @@ import { Automation } from '@/types/domain';
  * Lightweight automation runner used by UI or scheduled job.
  * This service is repository-agnostic: caller should pass repository instances.
  */
+import { AutomationRepository } from '@/repositories/automation.repository';
+import { TransactionRepository } from '@/repositories/transaction.repository';
+import { StreamRepository } from '@/repositories/stream.repository';
+
 export async function runAutomationsForDate(repos: {
-  automationRepo: any;
-  transactionRepo: any;
-  streamRepo?: any;
+  automationRepo: AutomationRepository;
+  transactionRepo: TransactionRepository;
+  streamRepo?: StreamRepository;
 }, date: Date) {
   const automations: Automation[] = await repos.automationRepo.findAll();
 

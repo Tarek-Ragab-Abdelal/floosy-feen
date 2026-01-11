@@ -4,7 +4,7 @@ import { STORES } from '@/lib/db/schema';
 import { Automation } from '@/types/domain';
 import { BaseRepository } from './base.repository';
 
-export class AutomationRepository implements Omit<BaseRepository<Automation>, 'delete'> {
+export class AutomationRepository implements BaseRepository<Automation> {
   async create(data: Omit<Automation, 'id' | 'createdAt'>): Promise<Automation> {
     const db = await getDB();
     const automation: Automation = {
@@ -68,6 +68,11 @@ export class AutomationRepository implements Omit<BaseRepository<Automation>, 'd
 
     await db.put(STORES.AUTOMATIONS, updatedData);
     return updated;
+  }
+
+  async delete(id: string): Promise<void> {
+    const db = await getDB();
+    await db.delete(STORES.AUTOMATIONS, id);
   }
 }
 

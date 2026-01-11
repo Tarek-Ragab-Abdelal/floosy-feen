@@ -24,6 +24,8 @@ export default function SettingsPage() {
   
   // Exchange Rates State (read-only)
   const [rates, setRates] = useState<ExchangeRateCache[]>([]);
+  const [targetCurrency, setTargetCurrency] = useState('USD');
+  const [exchangeRate, setExchangeRate] = useState('');
 
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);

@@ -123,6 +123,16 @@ export interface DBSchema {
       schedule: {
         frequency: string;
         day?: number | null;
+        startDate?: string;
+        endDate?: string | null;
+        occurrences?: number;
+      };
+      savingCircle?: {
+        totalOccurrences: number;
+        earningSchedule?: Array<{
+          occurrence: number;
+          portion: number;
+        }>;
       };
       isActive: boolean;
       createdAt: string;

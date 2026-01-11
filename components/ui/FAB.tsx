@@ -9,7 +9,7 @@ interface FABProps {
   label?: string;
 }
 
-export function FAB({ onClick, icon, label }: FABProps) {
+export function FAB({ onClick, icon, label }: Readonly<FABProps>) {
   return (
     <button
       onClick={onClick}

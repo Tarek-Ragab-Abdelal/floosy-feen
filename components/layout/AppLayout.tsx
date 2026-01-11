@@ -7,12 +7,12 @@ import { Home, Wallet, RefreshCw, Settings } from 'lucide-react';
 
 const navItems = [
   { href: '/home', label: 'Home', icon: Home },
-  { href: '/streams', label: 'Streams', icon: Wallet },
+  { href: '/transactions', label: 'Transactions', icon: Wallet },
   { href: '/automation', label: 'Automation', icon: RefreshCw },
   { href: '/settings', label: 'Settings', icon: Settings },
 ];
 
-export function AppLayout({ children }: { children: React.ReactNode }) {
+export function AppLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   const pathname = usePathname();
 
   return (
@@ -56,7 +56,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
                 <Wallet className="w-6 h-6 text-white" />
               </div>
               <h1 className="text-xl font-bold text-gray-900 dark:text-white">
-                Finance Vault
+                Floosy Feen
               </h1>
             </div>
 

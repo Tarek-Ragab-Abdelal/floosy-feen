@@ -180,15 +180,24 @@ export function generateAutomationInstances(
     const day = automation.schedule.day;
     if (typeof day !== 'number') continue;
 
-    // build a starting date aligned to fromDate or automation.createdAt
-    let current = new Date(automation.createdAt || new Date());
-    // align to the requested day in the month containing createdAt
-    current = new Date(current.getFullYear(), current.getMonth(), Math.min(day, 28));
+    // Use startDate if specified, otherwise use createdAt
+    const startDate = automation.schedule.startDate 
+      ? new Date(automation.schedule.startDate) 
+      : new Date(automation.createdAt || new Date());
+    
+    // Check endDate
+    const endDate = automation.schedule.endDate ? new Date(automation.schedule.endDate) : null;
+    const maxOccurrences = automation.schedule.occurrences || automation.savingCircle?.totalOccurrences;
+
+    // build a starting date aligned to fromDate or startDate
+    let current = new Date(startDate.getFullYear(), startDate.getMonth(), Math.min(day, 28));
 
     // fast-forward until >= fromDate
+    let occurrenceNumber = 1;
     while (current < fromDate) {
       current = addMonths(current, 1);
       current = new Date(current.getFullYear(), current.getMonth(), Math.min(day, 31));
+      occurrenceNumber++;
     }
 
     // generate until toDate (but cap to 2 years similar to recurrences)
@@ -196,6 +205,12 @@ export function generateAutomationInstances(
     const effectiveToDate = toDate > maxDate ? maxDate : toDate;
 
     while (current <= effectiveToDate) {
+      // Check if we've reached the end date
+      if (endDate && current > endDate) break;
+      
+      // Check if we've reached max occurrences
+      if (maxOccurrences && occurrenceNumber > maxOccurrences) break;
+
       // Determine transactions depending on automation type
       const projectionDate = new Date(current);
 
@@ -223,12 +238,68 @@ export function generateAutomationInstances(
             projectionDate: new Date(),
           });
         }
+      } else if (automation.type === 'installment') {
+        if (automation.sourceStreamId) {
+          instances.push({
+            streamId: automation.sourceStreamId,
+            amount: automation.amount,
+            currency: getStreamCurrency(automation.sourceStreamId) || currency,
+            applicabilityDate: new Date(projectionDate),
+            type: 'expense',
+            tags: [],
+            recurrenceId: automation.id,
+            description: automation.name,
+            isProjected: true,
+            projectionDate: new Date(),
+          });
+        }
+      } else if (automation.type === 'saving_circle') {
+        if (automation.sourceStreamId) {
+          const sourceCurrency = getStreamCurrency(automation.sourceStreamId) || currency;
+          
+          // Check if this is an earning month
+          const earningSchedule = automation.savingCircle?.earningSchedule || [];
+          const earningEntry = earningSchedule.find(e => e.occurrence === occurrenceNumber);
+          
+          if (earningEntry) {
+            // This is an earning month - create income transaction
+            const totalOccurrences = automation.savingCircle?.totalOccurrences || 1;
+            const earningAmount = automation.amount * totalOccurrences * earningEntry.portion;
+            
+            instances.push({
+              streamId: automation.sourceStreamId,
+              amount: earningAmount,
+              currency: sourceCurrency,
+              applicabilityDate: new Date(projectionDate),
+              type: 'income',
+              tags: [],
+              recurrenceId: automation.id,
+              description: `${automation.name} (Earning)`,
+              isProjected: true,
+              projectionDate: new Date(),
+            });
+          } else {
+            // Regular payment month - create expense transaction
+            instances.push({
+              streamId: automation.sourceStreamId,
+              amount: automation.amount,
+              currency: sourceCurrency,
+              applicabilityDate: new Date(projectionDate),
+              type: 'expense',
+              tags: [],
+              recurrenceId: automation.id,
+              description: `${automation.name} (Payment)`,
+              isProjected: true,
+              projectionDate: new Date(),
+            });
+          }
+        }
       } else if (automation.type === 'transfer') {
         if (automation.sourceStreamId) {
           instances.push({
             streamId: automation.sourceStreamId,
             amount: automation.amount,
-            currency,
+            currency: getStreamCurrency(automation.sourceStreamId) || currency,
             applicabilityDate: new Date(projectionDate),
             type: 'expense',
             tags: [],
@@ -242,7 +313,7 @@ export function generateAutomationInstances(
           instances.push({
             streamId: automation.targetStreamId,
             amount: automation.amount,
-            currency,
+            currency: getStreamCurrency(automation.targetStreamId) || currency,
             applicabilityDate: new Date(projectionDate),
             type: 'income',
             tags: [],
@@ -257,7 +328,7 @@ export function generateAutomationInstances(
           instances.push({
             streamId: automation.sourceStreamId,
             amount: automation.amount,
-            currency,
+            currency: getStreamCurrency(automation.sourceStreamId) || currency,
             applicabilityDate: new Date(projectionDate),
             type: 'expense',
             tags: [],
@@ -271,7 +342,7 @@ export function generateAutomationInstances(
           instances.push({
             streamId: automation.targetStreamId,
             amount: automation.amount,
-            currency,
+            currency: getStreamCurrency(automation.targetStreamId) || currency,
             applicabilityDate: new Date(projectionDate),
             type: 'income',
             tags: [],
@@ -283,10 +354,10 @@ export function generateAutomationInstances(
         }
       }
 
-      // advance one month
+      // advance one month and increment occurrence number
       current = addMonths(current, 1);
-      // normalize day-of-month
       current = new Date(current.getFullYear(), current.getMonth(), Math.min(day, 31));
+      occurrenceNumber++;
     }
   }
 

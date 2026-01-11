@@ -158,7 +158,7 @@ export function calculateBalanceOverTime(
     (a, b) => a.applicabilityDate.getTime() - b.applicabilityDate.getTime()
   );
 
-  let currentDate = new Date(startDate);
+  const currentDate = new Date(startDate);
   
   while (currentDate <= endDate) {
     const balance = calculateMoneyInHand(sortedTx, currentDate, targetCurrency, rates);

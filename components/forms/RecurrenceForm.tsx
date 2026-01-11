@@ -16,11 +16,11 @@ export function RecurrenceForm({ streams, onSuccess, onCancel, initial = null }:
   const { recurrenceRepo } = useRepositories();
   
   const [type, setType] = useState<TransactionType>(initial?.type || 'expense');
-  const [amount, setAmount] = useState(initial?.amount != null ? String(initial.amount) : '');
+  const [amount, setAmount] = useState(initial?.amount == null ? '' : String(initial.amount));
   const [streamId, setStreamId] = useState(initial?.streamId || streams[0]?.id || '');
   const [frequency, setFrequency] = useState<RecurrenceFrequency>(initial?.frequency || 'monthly');
-  const [customIntervalDays, setCustomIntervalDays] = useState(initial?.customIntervalDays != null ? String(initial.customIntervalDays) : '');
-  const [dayOfMonth, setDayOfMonth] = useState(initial?.dayOfMonth != null ? String(initial.dayOfMonth) : '');
+  const [customIntervalDays, setCustomIntervalDays] = useState(initial?.customIntervalDays == null ? '' : String(initial.customIntervalDays));
+  const [dayOfMonth, setDayOfMonth] = useState(initial?.dayOfMonth == null ? '' : String(initial.dayOfMonth));
   const [startDate, setStartDate] = useState(format(initial?.startDate || new Date(), 'yyyy-MM-dd'));
   const [endDate, setEndDate] = useState(initial?.endDate ? format(initial.endDate, 'yyyy-MM-dd') : '');
   const [description, setDescription] = useState(initial?.description || '');
@@ -31,12 +31,12 @@ export function RecurrenceForm({ streams, onSuccess, onCancel, initial = null }:
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!amount || parseFloat(amount) <= 0) {
+    if (!amount || Number.parseFloat(amount) <= 0) {
       alert('Please enter a valid amount');
       return;
     }
 
-    if (frequency === 'custom' && (!customIntervalDays || parseInt(customIntervalDays) <= 0)) {
+    if (frequency === 'custom' && (!customIntervalDays || Number.parseInt(customIntervalDays) <= 0)) {
       alert('Please enter a valid custom interval');
       return;
     }
@@ -44,14 +44,14 @@ export function RecurrenceForm({ streams, onSuccess, onCancel, initial = null }:
     setIsSubmitting(true);
 
     try {
-      if (initial && initial.id) {
+      if (initial?.id) {
         await recurrenceRepo.update(initial.id, {
           type,
-          amount: parseFloat(amount),
+          amount: Number.parseFloat(amount),
           streamId,
           frequency,
-          customIntervalDays: frequency === 'custom' ? parseInt(customIntervalDays) : undefined,
-          dayOfMonth: frequency === 'monthly' && dayOfMonth ? parseInt(dayOfMonth) : undefined,
+          customIntervalDays: frequency === 'custom' ? Number.parseInt(customIntervalDays) : undefined,
+          dayOfMonth: frequency === 'monthly' && dayOfMonth ? Number.parseInt(dayOfMonth) : undefined,
           startDate: new Date(startDate),
           endDate: endDate ? new Date(endDate) : null,
           description: description.trim() || undefined,
@@ -59,11 +59,11 @@ export function RecurrenceForm({ streams, onSuccess, onCancel, initial = null }:
       } else {
         await recurrenceRepo.create({
           type,
-          amount: parseFloat(amount),
+          amount: Number.parseFloat(amount),
           streamId,
           frequency,
-          customIntervalDays: frequency === 'custom' ? parseInt(customIntervalDays) : undefined,
-          dayOfMonth: frequency === 'monthly' && dayOfMonth ? parseInt(dayOfMonth) : undefined,
+          customIntervalDays: frequency === 'custom' ? Number.parseInt(customIntervalDays) : undefined,
+          dayOfMonth: frequency === 'monthly' && dayOfMonth ? Number.parseInt(dayOfMonth) : undefined,
           startDate: new Date(startDate),
           endDate: endDate ? new Date(endDate) : null,
           description: description.trim() || undefined,
@@ -79,13 +79,21 @@ export function RecurrenceForm({ streams, onSuccess, onCancel, initial = null }:
     }
   };
 
+  // Extract button label to avoid nested ternary
+  let submitButtonLabel = '';
+  if (isSubmitting) {
+    submitButtonLabel = initial ? 'Saving...' : 'Creating...';
+  } else {
+    submitButtonLabel = initial ? 'Save Recurrence' : 'Create Recurrence';
+  }
+
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
       {/* Type Selection */}
       <div className="space-y-2">
-        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+        <span className="block text-sm font-medium text-gray-700 dark:text-gray-300">
           Type
-        </label>
+        </span>
         <div className="grid grid-cols-2 gap-3">
           <button
             type="button"
@@ -114,9 +122,9 @@ export function RecurrenceForm({ streams, onSuccess, onCancel, initial = null }:
 
       {/* Amount */}
       <div className="space-y-2">
-        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+        <span className="block text-sm font-medium text-gray-700 dark:text-gray-300">
           Amount
-        </label>
+        </span>
         <div className="relative">
           <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 dark:text-gray-400">
             {selectedStream?.baseCurrency || 'USD'}
@@ -135,9 +143,9 @@ export function RecurrenceForm({ streams, onSuccess, onCancel, initial = null }:
 
       {/* Stream */}
       <div className="space-y-2">
-        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+        <span className="block text-sm font-medium text-gray-700 dark:text-gray-300">
           Stream
-        </label>
+        </span>
         <select
           value={streamId}
           onChange={(e) => setStreamId(e.target.value)}
@@ -154,9 +162,9 @@ export function RecurrenceForm({ streams, onSuccess, onCancel, initial = null }:
 
       {/* Frequency */}
       <div className="space-y-2">
-        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+        <span className="block text-sm font-medium text-gray-700 dark:text-gray-300">
           Frequency
-        </label>
+        </span>
         <select
           value={frequency}
           onChange={(e) => setFrequency(e.target.value as RecurrenceFrequency)}
@@ -173,9 +181,9 @@ export function RecurrenceForm({ streams, onSuccess, onCancel, initial = null }:
       {/* Custom Interval */}
       {frequency === 'custom' && (
         <div className="space-y-2">
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+          <span className="block text-sm font-medium text-gray-700 dark:text-gray-300">
             Custom Interval (Days)
-          </label>
+          </span>
           <input
             type="number"
             value={customIntervalDays}
@@ -190,9 +198,9 @@ export function RecurrenceForm({ streams, onSuccess, onCancel, initial = null }:
       {/* Day of Month for monthly frequency */}
       {frequency === 'monthly' && (
         <div className="space-y-2">
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+          <span className="block text-sm font-medium text-gray-700 dark:text-gray-300">
             Day of Month (Optional)
-          </label>
+          </span>
           <input
             type="number"
             min={1}
@@ -208,9 +216,9 @@ export function RecurrenceForm({ streams, onSuccess, onCancel, initial = null }:
 
       {/* Start Date */}
       <div className="space-y-2">
-        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+        <span className="block text-sm font-medium text-gray-700 dark:text-gray-300">
           Start Date
-        </label>
+        </span>
         <input
           type="date"
           value={startDate}
@@ -222,9 +230,9 @@ export function RecurrenceForm({ streams, onSuccess, onCancel, initial = null }:
 
       {/* End Date */}
       <div className="space-y-2">
-        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+        <span className="block text-sm font-medium text-gray-700 dark:text-gray-300">
           End Date (Optional)
-        </label>
+        </span>
         <input
           type="date"
           value={endDate}
@@ -238,9 +246,9 @@ export function RecurrenceForm({ streams, onSuccess, onCancel, initial = null }:
 
       {/* Description */}
       <div className="space-y-2">
-        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+        <span className="block text-sm font-medium text-gray-700 dark:text-gray-300">
           Description (Optional)
-        </label>
+        </span>
         <input
           type="text"
           value={description}
@@ -264,7 +272,7 @@ export function RecurrenceForm({ streams, onSuccess, onCancel, initial = null }:
           disabled={isSubmitting}
           className="flex-1 py-3 px-4 bg-emerald-600 text-white rounded-lg font-medium hover:bg-emerald-700 hover:shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          {isSubmitting ? (initial ? 'Saving...' : 'Creating...') : (initial ? 'Save Recurrence' : 'Create Recurrence')}
+          {submitButtonLabel}
         </button>
       </div>
     </form>

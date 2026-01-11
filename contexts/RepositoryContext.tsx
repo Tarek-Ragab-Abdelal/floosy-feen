@@ -32,7 +32,7 @@ import { runAutomationsForDate } from '@/services/automation.service';
 
 // ... (previous imports)
 
-export function RepositoryProvider({ children }: { children: ReactNode }) {
+export function RepositoryProvider({ children }: Readonly<{ children: ReactNode }>) {
   const [isInitialized, setIsInitialized] = useState(false);
   const [repositories] = useState({
     streamRepo: new StreamRepository(),
@@ -97,7 +97,7 @@ export function RepositoryProvider({ children }: { children: ReactNode }) {
                     }
 
                     // rate from -> primary = (USD->primary) / (USD->from)
-                    const rateFromTo = (usdToPrimary === 1 ? 1 : usdToPrimary) / usdToFrom;
+                    const rateFromTo = (usdToPrimary === 1 ? 1 : (usdToPrimary ?? 1)) / usdToFrom;
 
                     const entry: ExchangeRateCache = {
                       id: `${from}_${baseCurrency}_${formattedDate}`,
