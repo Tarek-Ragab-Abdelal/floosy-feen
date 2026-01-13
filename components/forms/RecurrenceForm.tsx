@@ -127,7 +127,7 @@ export function RecurrenceForm({ streams, onSuccess, onCancel, initial = null }:
         </span>
         <div className="relative">
           <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 dark:text-gray-400">
-            {selectedStream?.baseCurrency || 'USD'}
+            {selectedStream?.baseCurrency || 'EGP'}
           </span>
           <input
             type="number"

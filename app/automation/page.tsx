@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { useRepositories } from '@/contexts/RepositoryContext';
 import { Automation, Stream } from '@/types/domain';
-import { Plus, HelpCircle, ChevronRight, ChevronLeft, CheckCircle, AlertCircle } from 'lucide-react';
+import { HelpCircle, ChevronRight, ChevronLeft, CheckCircle, AlertCircle } from 'lucide-react';
 import { Modal } from '@/components/ui/Modal';
 import { AutomationsSection } from '@/components/automation/AutomationsSection';
 
@@ -98,7 +98,7 @@ export default function AutomationPage() {
   const getSelectedStreamCurrency = () => {
     const streamId = type === 'salary' ? targetStreamId : sourceStreamId;
     const stream = streams.find(s => s.id === streamId);
-    return stream?.baseCurrency || 'USD';
+    return stream?.baseCurrency || 'EGP';
   };
 
   const handleCreate = async (e: React.FormEvent) => {

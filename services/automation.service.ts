@@ -42,9 +42,9 @@ export async function runAutomationsForDate(repos: {
       try {
         const inferCurrency = async (streamId?: string) => {
           if (automation.currency) return automation.currency;
-          if (!repos.streamRepo || !streamId) return 'USD';
+          if (!repos.streamRepo || !streamId) return 'EGP';
           const s = await repos.streamRepo.findById(streamId);
-          return s?.baseCurrency || 'USD';
+          return s?.baseCurrency || 'EGP';
         };
         if (automation.type === 'salary') {
           if (automation.targetStreamId) {

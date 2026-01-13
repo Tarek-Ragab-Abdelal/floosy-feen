@@ -58,7 +58,7 @@ export function RepositoryProvider({ children }: Readonly<{ children: ReactNode 
             const today = new Date().toISOString().split('T')[0];
             // Check if we already have today's rates for primary currency (as target)
             const allRates = await repositories.exchangeRateRepo.findAll();
-            const hasTodayRates = allRates.some(r => r.toCurrency === baseCurrency && r.date && r.date.startsWith(today));
+            const hasTodayRates = allRates.some(r => r.toCurrency === baseCurrency && r.date?.startsWith(today));
 
             if (hasTodayRates) {
               console.log('Exchange rates (common currencies) are fresh for primary currency');
@@ -66,20 +66,17 @@ export function RepositoryProvider({ children }: Readonly<{ children: ReactNode 
               const apiKey = process.env.NEXT_PUBLIC_CURRENCYFREAKS_APIKEY;
               if (apiKey) {
                 console.log(`Fetching currency rates (USD base) to compute rates for primary ${baseCurrency}...`);
-                // CurrencyFreaks returns rates with USD as base for this endpoint. We'll fetch once
                 const data = await exchangeRateService.fetchRates('USD', apiKey);
                 // Normalize date to YYYY-MM-DD
                 const dateStr = (data.date || new Date()).toString();
                 const maybeDate = new Date(dateStr);
-                const formattedDate = isNaN(maybeDate.getTime()) ? new Date().toISOString().split('T')[0] : maybeDate.toISOString().split('T')[0];
+                const formattedDate = Number.isNaN(maybeDate.getTime()) ? new Date().toISOString().split('T')[0] : maybeDate.toISOString().split('T')[0];
 
-                // USD -> X rates
                 const usdRates = Object.entries(data.rates).reduce<Record<string, number>>((acc, [k, v]) => {
                   acc[k] = Number(v);
                   return acc;
                 }, {});
 
-                // USD to primary (if primary is USD, set to 1)
                 const usdToPrimary = baseCurrency === 'USD' ? 1 : (usdRates[baseCurrency] || null);
 
                 if (baseCurrency !== 'USD' && !usdToPrimary) {
@@ -96,7 +93,6 @@ export function RepositoryProvider({ children }: Readonly<{ children: ReactNode 
                       continue;
                     }
 
-                    // rate from -> primary = (USD->primary) / (USD->from)
                     const rateFromTo = (usdToPrimary === 1 ? 1 : (usdToPrimary ?? 1)) / usdToFrom;
 
                     const entry: ExchangeRateCache = {
@@ -132,8 +128,13 @@ export function RepositoryProvider({ children }: Readonly<{ children: ReactNode 
       });
   }, []);
 
+  const contextValue = React.useMemo(
+    () => ({ ...repositories, isInitialized }),
+    [repositories, isInitialized]
+  );
+
   return (
-    <RepositoryContext.Provider value={{ ...repositories, isInitialized }}>
+    <RepositoryContext.Provider value={contextValue}>
       {children}
     </RepositoryContext.Provider>
   );

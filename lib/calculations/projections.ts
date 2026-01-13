@@ -221,7 +221,7 @@ export function generateAutomationInstances(
         return s?.baseCurrency;
       };
 
-      const currency = automation.currency || getStreamCurrency(automation.targetStreamId) || getStreamCurrency(automation.sourceStreamId) || 'USD';
+      const currency = automation.currency || getStreamCurrency(automation.targetStreamId) || getStreamCurrency(automation.sourceStreamId) || 'EGP';
 
       if (automation.type === 'salary') {
         if (automation.targetStreamId) {
@@ -294,36 +294,7 @@ export function generateAutomationInstances(
             });
           }
         }
-      } else if (automation.type === 'transfer') {
-        if (automation.sourceStreamId) {
-          instances.push({
-            streamId: automation.sourceStreamId,
-            amount: automation.amount,
-            currency: getStreamCurrency(automation.sourceStreamId) || currency,
-            applicabilityDate: new Date(projectionDate),
-            type: 'expense',
-            tags: [],
-            recurrenceId: automation.id,
-            description: automation.name,
-            isProjected: true,
-            projectionDate: new Date(),
-          });
-        }
-        if (automation.targetStreamId) {
-          instances.push({
-            streamId: automation.targetStreamId,
-            amount: automation.amount,
-            currency: getStreamCurrency(automation.targetStreamId) || currency,
-            applicabilityDate: new Date(projectionDate),
-            type: 'income',
-            tags: [],
-            recurrenceId: automation.id,
-            description: automation.name,
-            isProjected: true,
-            projectionDate: new Date(),
-          });
-        }
-      } else if (automation.type === 'cc_payment') {
+      } else if (automation.type === 'transfer' || automation.type === 'cc_payment') {
         if (automation.sourceStreamId) {
           instances.push({
             streamId: automation.sourceStreamId,

@@ -12,11 +12,11 @@ interface TransactionFormProps {
   initial?: Transaction | null;
 }
 
-export function TransactionForm({ streams, onSuccess, onCancel, initial = null }: TransactionFormProps) {
+export function TransactionForm({ streams, onSuccess, onCancel, initial = null }: Readonly<TransactionFormProps>) {
   const { transactionRepo, tagRepo } = useRepositories();
   
   const [type, setType] = useState<TransactionType>(initial?.type || 'expense');
-  const [amount, setAmount] = useState(initial?.amount != null ? String(initial.amount) : '');
+  const [amount, setAmount] = useState(initial?.amount == null ? '' : String(initial.amount));
   const [streamId, setStreamId] = useState(initial?.streamId || streams[0]?.id || '');
   const [applicabilityDate, setApplicabilityDate] = useState(format(initial?.applicabilityDate || new Date(), 'yyyy-MM-dd'));
   const [description, setDescription] = useState(initial?.description || '');
@@ -41,7 +41,7 @@ export function TransactionForm({ streams, onSuccess, onCancel, initial = null }
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!amount || parseFloat(amount) <= 0) {
+    if (!amount || Number.parseFloat(amount) <= 0) {
       alert('Please enter a valid amount');
       return;
     }
@@ -57,12 +57,12 @@ export function TransactionForm({ streams, onSuccess, onCancel, initial = null }
       // Create tags if they don't exist (we keep tag names)
       await Promise.all(tags.map(tagName => tagRepo.findOrCreate(tagName)));
 
-      if (initial && initial.id) {
+      if (initial?.id) {
         await transactionRepo.update(initial.id, {
           type,
-          amount: parseFloat(amount),
+          amount: Number.parseFloat(amount),
           streamId,
-          currency: selectedStream?.baseCurrency || 'USD',
+          currency: selectedStream?.baseCurrency || 'EGP',
           applicabilityDate: new Date(applicabilityDate),
           tags,
           description: description.trim() || undefined,
@@ -70,9 +70,9 @@ export function TransactionForm({ streams, onSuccess, onCancel, initial = null }
       } else {
         await transactionRepo.create({
           type,
-          amount: parseFloat(amount),
+          amount: Number.parseFloat(amount),
           streamId,
-          currency: selectedStream?.baseCurrency || 'USD',
+          currency: selectedStream?.baseCurrency || 'EGP',
           applicabilityDate: new Date(applicabilityDate),
           tags,
           description: description.trim() || undefined,
@@ -88,13 +88,21 @@ export function TransactionForm({ streams, onSuccess, onCancel, initial = null }
     }
   };
 
+  // Extract button label logic to avoid nested ternary
+  let submitButtonLabel = '';
+  if (isSubmitting) {
+    submitButtonLabel = initial ? 'Saving...' : 'Creating...';
+  } else {
+    submitButtonLabel = initial ? 'Save Transaction' : 'Create Transaction';
+  }
+
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
       {/* Type Selection */}
       <div className="space-y-2">
-        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+        <span className="block text-sm font-medium text-gray-700 dark:text-gray-300">
           Type
-        </label>
+        </span>
         <div className="grid grid-cols-2 gap-3">
           <button
             type="button"
@@ -123,12 +131,12 @@ export function TransactionForm({ streams, onSuccess, onCancel, initial = null }
 
       {/* Amount */}
       <div className="space-y-2">
-        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+        <span className="block text-sm font-medium text-gray-700 dark:text-gray-300">
           Amount
-        </label>
+        </span>
         <div className="relative">
           <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 dark:text-gray-400">
-            {selectedStream?.baseCurrency || 'USD'}
+            {selectedStream?.baseCurrency || 'EGP'}
           </span>
           <input
             type="number"
@@ -144,9 +152,9 @@ export function TransactionForm({ streams, onSuccess, onCancel, initial = null }
 
       {/* Stream */}
       <div className="space-y-2">
-        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+        <span className="block text-sm font-medium text-gray-700 dark:text-gray-300">
           Stream
-        </label>
+        </span>
         <select
           value={streamId}
           onChange={(e) => setStreamId(e.target.value)}
@@ -163,9 +171,9 @@ export function TransactionForm({ streams, onSuccess, onCancel, initial = null }
 
       {/* Applicability Date */}
       <div className="space-y-2">
-        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+        <span className="block text-sm font-medium text-gray-700 dark:text-gray-300">
           Applicability Date
-        </label>
+        </span>
         <input
           type="date"
           value={applicabilityDate}
@@ -177,9 +185,9 @@ export function TransactionForm({ streams, onSuccess, onCancel, initial = null }
 
       {/* Description */}
       <div className="space-y-2">
-        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+        <span className="block text-sm font-medium text-gray-700 dark:text-gray-300">
           Description (Optional)
-        </label>
+        </span>
         <input
           type="text"
           value={description}
@@ -191,15 +199,20 @@ export function TransactionForm({ streams, onSuccess, onCancel, initial = null }
 
       {/* Tags */}
       <div className="space-y-2">
-        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+        <span className="block text-sm font-medium text-gray-700 dark:text-gray-300">
           Tags (Optional)
-        </label>
+        </span>
         <div className="flex gap-2">
           <input
             type="text"
             value={tagInput}
             onChange={(e) => setTagInput(e.target.value)}
-            onKeyPress={(e) => e.key === 'Enter' && (e.preventDefault(), handleAddTag())}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault();
+                handleAddTag();
+              }
+            }}
             placeholder="Add a tag"
             className="flex-1 px-4 py-3 bg-gray-50 dark:bg-slate-700 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-900 dark:text-white focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
           />
@@ -246,7 +259,7 @@ export function TransactionForm({ streams, onSuccess, onCancel, initial = null }
           disabled={isSubmitting}
           className="flex-1 py-3 px-4 bg-emerald-600 text-white rounded-lg font-medium hover:bg-emerald-700 hover:shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          {isSubmitting ? (initial ? 'Saving...' : 'Creating...') : (initial ? 'Save Transaction' : 'Create Transaction')}
+          {submitButtonLabel}
         </button>
       </div>
     </form>

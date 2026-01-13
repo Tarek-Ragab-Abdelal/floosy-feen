@@ -119,13 +119,13 @@ export default function SettingsPage() {
   };
 
   const handleResetData = async () => {
-    const confirmed = window.confirm(
+    const confirmed = globalThis.window.confirm(
       'Are you sure you want to reset all data? This action cannot be undone!'
     );
 
     if (!confirmed) return;
 
-    const doubleConfirmed = window.confirm(
+    const doubleConfirmed = globalThis.window.confirm(
       'This will delete ALL your data including streams, transactions, and settings. Are you absolutely sure?'
     );
 
@@ -133,7 +133,7 @@ export default function SettingsPage() {
 
     try {
       await resetDB();
-      window.location.href = '/';
+      globalThis.window.location.href = '/';
     } catch (error) {
       console.error('Error resetting database:', error);
       alert('Failed to reset data. Please try again.');
@@ -257,9 +257,9 @@ export default function SettingsPage() {
           <div className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                <span className="block text-sm font-medium text-gray-700 dark:text-gray-300">
                   From Date
-                </label>
+                </span>
                 <input
                   type="date"
                   value={exportFromDate}
@@ -269,9 +269,9 @@ export default function SettingsPage() {
               </div>
 
               <div className="space-y-2">
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                <span className="block text-sm font-medium text-gray-700 dark:text-gray-300">
                   To Date
-                </label>
+                </span>
                 <input
                   type="date"
                   value={exportToDate}

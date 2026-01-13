@@ -4,13 +4,12 @@ import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useRepositories } from '@/contexts/RepositoryContext';
 import { CurrencySelector } from '@/components/ui/CurrencySelector';
-import { Wallet } from 'lucide-react';
 
 export default function WelcomePage() {
   const router = useRouter();
   const { settingsRepo } = useRepositories();
   const [name, setName] = useState('');
-  const [primaryCurrency, setPrimaryCurrency] = useState('USD');
+  const [primaryCurrency, setPrimaryCurrency] = useState('EGP');
   const [isLoading, setIsLoading] = useState(false);
 
   const handleContinue = async () => {
@@ -55,9 +54,9 @@ export default function WelcomePage() {
         <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-xl p-8 space-y-6">
           {/* Name Input */}
           <div className="space-y-2">
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+            <span className="block text-sm font-medium text-gray-700 dark:text-gray-300">
               Your Name
-            </label>
+            </span>
             <input
               type="text"
               value={name}
