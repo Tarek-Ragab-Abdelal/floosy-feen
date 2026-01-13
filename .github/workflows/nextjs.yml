@@ -27,9 +27,6 @@ jobs:
           node-version: "20"
           cache: "npm"
 
-      - name: Install dependencies - to create package-lock.json
-        run: npm i
-
       - name: Install all dependencies
         run: npm ci
 
