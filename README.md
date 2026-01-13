@@ -32,17 +32,20 @@ A modern financial management application built with Next.js, featuring transact
 ### Installation
 
 1. Clone the repository:
+
 ```bash
 git clone https://github.com/Tarek-Ragab-Abdelal/floosy-feen.git
 cd floosy-feen
 ```
 
 2. Install dependencies:
+
 ```bash
 npm install
 ```
 
 3. Run the development server:
+
 ```bash
 npm run dev
 ```
