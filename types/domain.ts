@@ -100,8 +100,8 @@ export interface ExchangeRateCache {
 
 // Common currencies
 export const COMMON_CURRENCIES = [
-  { code: 'USD', name: 'US Dollar', symbol: '$' },
   { code: 'EGP', name: 'Egyptian Pound', symbol: '£' },
+  { code: 'USD', name: 'US Dollar', symbol: '$' },
   { code: 'SAR', name: 'Saudi Riyal', symbol: '﷼' },
   { code: 'EUR', name: 'Euro', symbol: '€' },
 ] as const;

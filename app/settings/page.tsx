@@ -67,15 +67,11 @@ export default function SettingsPage() {
     }
 
     try {
-      // Save Foreign -> Primary
-      // e.g. 1 USD = 50 EGP (if Primary is EGP)
-      // from: USD, to: EGP, rate: 50
-      
       const newRate: ExchangeRateCache = {
         id: `${targetCurrency}_${primaryCurrency}_${format(new Date(), 'yyyy-MM-dd')}`,
         fromCurrency: targetCurrency,
         toCurrency: primaryCurrency,
-        rate: parseFloat(exchangeRate),
+        rate: Number.parseFloat(exchangeRate),
         date: format(new Date(), 'yyyy-MM-dd'),
         fetchedAt: new Date(),
       };
