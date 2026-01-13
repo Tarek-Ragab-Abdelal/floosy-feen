@@ -27,7 +27,7 @@ jobs:
           node-version: "20"
           cache: "npm"
 
-      - name: Install dependencies
+      - name: Install all dependencies
         run: npm ci
 
       - name: Build Next.js site
