@@ -6,10 +6,8 @@ import { useRepositories } from '@/contexts/RepositoryContext';
 import { CurrencySelector } from '@/components/ui/CurrencySelector';
 import { downloadCSV, downloadJSON } from '@/lib/export/exporter';
 import { resetDB } from '@/lib/db/init';
-import { UserSettings } from '@/types/domain';
-// Imports updated
 import { exchangeRateRepo } from '@/repositories/exchange-rate.repository';
-import { ExchangeRateCache, COMMON_CURRENCIES } from '@/types/domain';
+import { UserSettings, ExchangeRateCache, COMMON_CURRENCIES } from '@/types/domain';
 import { Settings as SettingsIcon, Download, Trash2, Save, RefreshCw } from 'lucide-react';
 import { format, subMonths } from 'date-fns';
 
@@ -18,14 +16,12 @@ export default function SettingsPage() {
   
   const [settings, setSettings] = useState<UserSettings | null>(null);
   const [name, setName] = useState('');
-  const [primaryCurrency, setPrimaryCurrency] = useState('USD');
+  const [primaryCurrency, setPrimaryCurrency] = useState('EGP');
   const [exportFromDate, setExportFromDate] = useState(format(subMonths(new Date(), 6), 'yyyy-MM-dd'));
   const [exportToDate, setExportToDate] = useState(format(new Date(), 'yyyy-MM-dd'));
   
   // Exchange Rates State (read-only)
   const [rates, setRates] = useState<ExchangeRateCache[]>([]);
-  const [targetCurrency, setTargetCurrency] = useState('USD');
-  const [exchangeRate, setExchangeRate] = useState('');
 
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
@@ -43,50 +39,13 @@ export default function SettingsPage() {
         setName(stgs.name);
         setPrimaryCurrency(stgs.primaryCurrency);
         
-        // Load rates
-        // We want rates where 'to' is primary currency, basically Foreign -> Primary
         const allRates = await exchangeRateRepo.findAll();
-        // Filter for display? Or show all? Show all for now but sorted.
-        setRates(allRates.sort((a,b) => b.date.localeCompare(a.date)));
+        setRates(allRates.toSorted((a,b) => b.date.localeCompare(a.date)));
       }
     } catch (error) {
       console.error('Error loading settings:', error);
     } finally {
       setIsLoading(false);
-    }
-  };
-
-  const handleSaveRate = async () => {
-    if (!exchangeRate || parseFloat(exchangeRate) <= 0) {
-      alert('Please enter a valid rate');
-      return;
-    }
-    if (targetCurrency === primaryCurrency) {
-      alert('Target currency cannot be same as primary');
-      return;
-    }
-
-    try {
-      const newRate: ExchangeRateCache = {
-        id: `${targetCurrency}_${primaryCurrency}_${format(new Date(), 'yyyy-MM-dd')}`,
-        fromCurrency: targetCurrency,
-        toCurrency: primaryCurrency,
-        rate: Number.parseFloat(exchangeRate),
-        date: format(new Date(), 'yyyy-MM-dd'),
-        fetchedAt: new Date(),
-      };
-      
-      await exchangeRateRepo.saveRate(newRate);
-      
-      // Also save inverse? Usually good practice but balance calc handles inverse if missing.
-      // Let's just save one way for now.
-      
-      alert('Rate saved');
-      setExchangeRate('');
-      loadSettings();
-    } catch (error) {
-      console.error('Error saving rate:', error);
-      alert('Failed to save rate');
     }
   };
 
@@ -215,9 +174,9 @@ export default function SettingsPage() {
 
           <div className="space-y-4">
             <div className="space-y-2">
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+              <span className="block text-sm font-medium text-gray-700 dark:text-gray-300">
                 Your Name
-              </label>
+              </span>
               <input
                 type="text"
                 value={name}
