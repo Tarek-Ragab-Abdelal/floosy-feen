@@ -1,0 +1,21 @@
+{
+  "name": "Floosy Feen",
+  "short_name": "FlossyFeen",
+  "description": "Local-first personal finance tracker with multi-currency support and balance projections.",
+  "start_url": "/floosy-feen/",
+  "scope": "/floosy-feen/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#059669",
+  "orientation": "portrait-primary",
+  "categories": ["finance", "productivity"],
+  "lang": "en",
+  "icons": [
+    {
+      "src": "/floosy-feen/logo-no-bg.png",
+      "sizes": "500x500",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
