@@ -1,6 +1,8 @@
 import type { MetadataRoute } from 'next';
 import { SITE_URL } from './config';
 
+export const dynamic = 'force-static';
+
 const BASE_URL = SITE_URL;
 const LAST_MODIFIED = new Date('2025-01-01');
 
