@@ -19,9 +19,21 @@ export default function sitemap(): MetadataRoute.Sitemap {
       priority: 0.9,
     },
     {
+      url: `${BASE_URL}/guide`,
+      lastModified: LAST_MODIFIED,
+      changeFrequency: 'monthly',
+      priority: 0.8,
+    },
+    {
       url: `${BASE_URL}/home`,
       lastModified: LAST_MODIFIED,
       changeFrequency: 'weekly',
+      priority: 0.7,
+    },
+    {
+      url: `${BASE_URL}/about`,
+      lastModified: LAST_MODIFIED,
+      changeFrequency: 'monthly',
       priority: 0.7,
     },
     {
@@ -44,3 +56,4 @@ export default function sitemap(): MetadataRoute.Sitemap {
     },
   ];
 }
+
